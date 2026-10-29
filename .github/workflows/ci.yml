@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call: # The release workflow runs the same checks before it publishes.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Coding standards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: '8.3'
+          tools: composer
+          coverage: none
+      - run: composer update --no-interaction --no-progress --prefer-dist
+      - run: composer lint
+
+  test:
+    name: Tests (PHP ${{ matrix.php }}, WordPress ${{ matrix.wp }}, WP Updates Notifier ${{ matrix.wpun }})
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # The oldest supported combination.
+          - { php: '7.4', wp: '6.7', wpun: 'v2.0.0', experimental: false }
+          - { php: '8.3', wp: '6.7', wpun: 'v2.0.0', experimental: false }
+          - { php: '8.3', wp: '7.1', wpun: 'v2.0.0', experimental: false }
+          # Early warning: the development versions. A failure here does not fail the build.
+          - { php: '8.3', wp: 'trunk', wpun: 'main', experimental: true }
+    services:
+      db:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: wordpress_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli, gd
+          tools: composer
+          coverage: none
+      - name: Run the tests
+        env:
+          WP_REF: ${{ matrix.wp }}
+          WPUN_REF: ${{ matrix.wpun }}
+          WP_DB_HOST: 127.0.0.1
+          WP_DB_USER: root
+          WP_DB_PASSWORD: root
+        run: bin/run-tests.sh
+
+  package:
+    name: Build the zip
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build
+        run: bin/build-zip.sh
+      - name: Check the zip holds the plugin directory and nothing else
+        run: |
+          set -eu
+          zip=$(ls build/wpun-slack-channel-*.zip)
+          unzip -Z1 "$zip" | sort > build/contents.txt
+          cat build/contents.txt
+          printf '%s\n' \
+            wpun-slack-channel/LICENSE \
+            wpun-slack-channel/README.md \
+            wpun-slack-channel/class-slack-channel.php \
+            wpun-slack-channel/wpun-slack-channel.php | diff - build/contents.txt
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: wpun-slack-channel-zip
+          path: |
+            build/wpun-slack-channel-*.zip
+            build/wpun-slack-channel-*.zip.sha256
+          if-no-files-found: error

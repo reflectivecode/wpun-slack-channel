@@ -1,0 +1,4 @@
+/vendor/
+/build/
+/.phpcs-cache
+composer.lock

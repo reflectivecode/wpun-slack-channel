@@ -1,0 +1,57 @@
+name: Release
+
+# Push a tag like v1.0.1 (matching Version in wpun-slack-channel.php). The release is published only when every check passes.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Check the tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: The tag must match the plugin version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          version=$(sed -n 's/^ \* Version: *//p' wpun-slack-channel.php | head -n 1 | tr -d '\r ')
+          if [ "v$version" != "$TAG" ]; then
+            echo "Tag $TAG does not match Version $version in wpun-slack-channel.php" >&2
+            exit 1
+          fi
+
+  ci:
+    name: Checks
+    needs: verify
+    uses: ./.github/workflows/ci.yml
+
+  release:
+    name: Publish the release
+    needs: [verify, ci]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Create the release and upload the assets.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the zip
+        run: bin/build-zip.sh
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          gh release create "$TAG" build/wpun-slack-channel-*.zip build/wpun-slack-channel-*.zip.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$TAG" \
+            --generate-notes \
+            --verify-tag
