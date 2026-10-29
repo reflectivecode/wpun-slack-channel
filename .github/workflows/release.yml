@@ -50,8 +50,15 @@ jobs:
           TAG: ${{ github.ref_name }}
         run: |
           set -eu
+          # A tag with a hyphen (v1.0.0-beta.1, v1.0.0-rc.1) is a pre-release.
+          flags=
+          case "$TAG" in
+            *-*) flags=--prerelease ;;
+          esac
+          # shellcheck disable=SC2086
           gh release create "$TAG" build/wpun-slack-channel-*.zip build/wpun-slack-channel-*.zip.sha256 \
             --repo "$GITHUB_REPOSITORY" \
             --title "$TAG" \
             --generate-notes \
-            --verify-tag
+            --verify-tag \
+            $flags

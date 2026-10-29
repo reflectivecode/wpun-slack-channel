@@ -35,6 +35,6 @@ The tests run inside WordPress's own PHPUnit suite against a real database, with
 ## Releasing
 
 1. Change `Version:` in `wpun-slack-channel.php` and commit.
-2. Tag it and push the tag: `git tag v1.0.1 && git push origin v1.0.1`.
+2. Tag it and push the tag: `git tag v1.0.1 && git push origin v1.0.1`. A version with a hyphen, such as `1.0.0-beta.1` (tag `v1.0.0-beta.1`), is published as a pre-release.
 
 The release workflow checks that the tag matches the plugin header, runs the full test matrix, builds the zip and publishes a GitHub release with the zip and its SHA-256 checksum.
