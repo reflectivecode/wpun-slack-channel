@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       WP Updates Notifier Slack Channel
  * Description:       Sends WP Updates Notifier alerts to Slack through an incoming webhook. Restores the Slack notifications that version 1.x had and 2.0.0 dropped, and picks up the Slack settings 2.0.0 kept.
- * Version:           1.0.0-beta.1
+ * Version:           1.0.0
  * Requires at least: 6.7
  * Requires PHP:      7.4
  * Requires Plugins:  wp-updates-notifier
